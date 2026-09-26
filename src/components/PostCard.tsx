@@ -62,7 +62,7 @@ export function PostCard({ post, badges = [], highlight = [] }: Props) {
           ).map(([label, v]) => (
             <div key={label} className="rounded-lg bg-canvas py-1.5">
               <dt className="text-[11px] text-muted">{label}</dt>
-              <dd className="text-sm font-semibold tabular-nums">{num(v)}</dd>
+              <dd className="text-[13px] font-semibold tabular-nums sm:text-sm">{num(v)}</dd>
             </div>
           ))}
         </dl>
@@ -70,7 +70,7 @@ export function PostCard({ post, badges = [], highlight = [] }: Props) {
         <div className="mt-auto flex items-center justify-between pt-1 text-xs">
           <span className="text-muted">{date(post.timestamp)}</span>
           <a href={post.permalink} target="_blank" rel="noreferrer" className="text-link hover:underline">
-            Instagram에서 보기 ↗
+            원본 보기 ↗
           </a>
         </div>
       </div>

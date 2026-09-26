@@ -63,7 +63,7 @@ export default function App() {
           autoCapitalize="none"
           autoCorrect="off"
           spellCheck={false}
-          className="h-12 min-w-0 flex-1 rounded-xl border border-line bg-surface px-4 text-base outline-none focus:border-action"
+          className="h-12 w-full min-w-0 shrink-0 rounded-xl sm:w-auto sm:flex-1 border border-line bg-surface px-4 text-base outline-none focus:border-action"
         />
         <button
           type="submit"
