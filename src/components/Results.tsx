@@ -1,15 +1,23 @@
 import type { AccountData } from '../../shared/types'
 import { KIND_LABEL, VIRAL_RATIO, type Analysis, type Pattern } from '../lib/analyze'
-import { date, num } from '../lib/format'
+import { change, date, num } from '../lib/format'
 import { PostCard, PostGrid } from './PostCard'
 import { Card, Empty, Section, Stat } from './ui'
 
 const SOURCE_LABEL = { meta: 'Instagram 공식 API (Business Discovery)', apify: 'Apify Instagram Scraper' }
 
-export function Results({ data, a }: { data: AccountData; a: Analysis }) {
+interface Prev {
+  data: AccountData
+  a: Analysis
+}
+
+export function Results({ data, a, prev }: { data: AccountData; a: Analysis; prev: Prev | null }) {
   const { profile } = data
   const s = a.summary
   const hide = new Set(data.unavailableMetrics)
+  // 지난 수집본 대비 변화 (같은 계정을 다시 분석했을 때만)
+  const ps = prev?.a.summary
+  const delta = (now: number | null | undefined, before: number | null | undefined) => (prev ? change(now, before) : null)
 
   return (
     <div>
@@ -30,14 +38,21 @@ export function Results({ data, a }: { data: AccountData; a: Analysis }) {
             </div>
           </div>
           <div className="mt-5 grid grid-cols-2 gap-x-4 gap-y-5 sm:grid-cols-3 lg:grid-cols-6">
-            {profile.followers !== null && <Stat label="팔로워" value={num(profile.followers)} />}
+            {profile.followers !== null && (
+              <Stat label="팔로워" value={num(profile.followers)} delta={delta(profile.followers, prev?.data.profile.followers)} />
+            )}
             <Stat label="분석한 게시물" value={`${s.analyzed}개`} hint={profile.totalPosts ? `전체 ${num(profile.totalPosts)}개 중` : undefined} />
-            {s.averages.likes !== undefined && <Stat label="평균 좋아요" value={num(s.averages.likes)} hint={`${s.samples.likes}개 기준`} />}
-            {s.averages.comments !== undefined && <Stat label="평균 댓글" value={num(s.averages.comments)} hint={`${s.samples.comments}개 기준`} />}
+            {s.averages.likes !== undefined && <Stat label="평균 좋아요" value={num(s.averages.likes)} hint={`${s.samples.likes}개 기준`} delta={delta(s.averages.likes, ps?.averages.likes)} />}
+            {s.averages.comments !== undefined && <Stat label="평균 댓글" value={num(s.averages.comments)} hint={`${s.samples.comments}개 기준`} delta={delta(s.averages.comments, ps?.averages.comments)} />}
             {!hide.has('views') && s.averages.views !== undefined && (
-              <Stat label="평균 조회수" value={num(s.averages.views)} hint={`영상 ${s.samples.views}개 기준`} />
+              <Stat label="평균 조회수" value={num(s.averages.views)} hint={`영상 ${s.samples.views}개 기준`} delta={delta(s.averages.views, ps?.averages.views)} />
             )}
           </div>
+          {prev && (
+            <p className="mt-3 text-xs text-muted">
+              ▲▼ 는 {date(prev.data.fetchedAt)} 수집본 대비 변화입니다. 두 번의 분석 기간이 겹치므로 같은 게시물이 양쪽에 들어 있을 수 있습니다.
+            </p>
+          )}
           <div className="mt-5">
             <p className="mb-2 text-xs text-muted">형식 비율</p>
             <div className="flex h-2.5 overflow-hidden rounded-full bg-canvas">
