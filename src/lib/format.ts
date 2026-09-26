@@ -1,6 +1,7 @@
 export function num(n: number | null | undefined): string {
   if (n === null || n === undefined || Number.isNaN(n)) return '–'
   if (n >= 100_000_000) return `${(n / 100_000_000).toFixed(1).replace(/\.0$/, '')}억`
+  if (n >= 10_000_000) return `${Math.round(n / 10_000).toLocaleString('ko-KR')}만`
   if (n >= 10_000) return `${(n / 10_000).toFixed(1).replace(/\.0$/, '')}만`
   return Math.round(n).toLocaleString('ko-KR')
 }

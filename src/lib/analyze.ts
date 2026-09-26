@@ -78,8 +78,20 @@ export interface Analysis {
 }
 
 const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : NaN)
+// 패턴 비교는 중앙값으로 한다 — 초대형 게시물 하나가 그룹 전체를 대표하지 않도록
+const median = (xs: number[]) => {
+  if (!xs.length) return NaN
+  const s = [...xs].sort((a, b) => a - b)
+  const m = Math.floor(s.length / 2)
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2
+}
 const round1 = (x: number) => Math.round(x * 10) / 10
 const fmtX = (x: number) => `${round1(x).toFixed(1)}배`
+
+/** 줄 맞춤용 보이지 않는 문자(⠀ 등)를 걷어낸 한 줄 캡션 */
+export function cleanCaption(caption: string) {
+  return caption.replace(/[\u2800\u3164\u115f\u1160\u200b-\u200d\ufeff]/g, ' ').replace(/\s+/g, ' ').trim()
+}
 
 function hashtagsOf(caption: string): string[] {
   return [...new Set((caption.match(/#[\p{L}\p{N}_]+/gu) ?? []).map((h) => h.toLowerCase()))]
@@ -186,19 +198,19 @@ interface Group {
   posts: ScoredPost[]
 }
 
-/** 두 그룹의 평균 점수를 비교. 표본·차이가 기준을 넘을 때만 결과를 낸다 */
+/** 두 그룹의 중앙 점수를 비교. 표본·차이가 기준을 넘을 때만 결과를 낸다 */
 function compare(a: Group, b: Group, metric?: Metric) {
   const val = (p: ScoredPost) => (metric ? p.ratios[metric] : p.score)
   const va = a.posts.map(val).filter((v): v is number => typeof v === 'number')
   const vb = b.posts.map(val).filter((v): v is number => typeof v === 'number')
   if (va.length < MIN_SAMPLE || vb.length < MIN_SAMPLE) return null
-  const ma = mean(va)
-  const mb = mean(vb)
+  const ma = median(va)
+  const mb = median(vb)
   if (!(ma > 0 && mb > 0)) return null
   const [hi, lo, mh, ml, nh, nl] = ma >= mb ? [a, b, ma, mb, va.length, vb.length] : [b, a, mb, ma, vb.length, va.length]
   const gap = mh / ml
   if (gap < PATTERN_GAP) return null
-  return { hi, lo, gap, evidence: `${hi.label} ${nh}개 평균 ${fmtX(mh)} vs ${lo.label} ${nl}개 평균 ${fmtX(ml)} (계정 평균 = 1.0배)` }
+  return { hi, lo, gap, evidence: `${hi.label} ${nh}개 중앙값 ${fmtX(mh)} vs ${lo.label} ${nl}개 중앙값 ${fmtX(ml)} (계정 평균 = 1.0배)` }
 }
 
 function findPatterns(posts: ScoredPost[], viral: ViralPost[]): { patterns: Pattern[]; facts: Record<string, string> } {
@@ -210,7 +222,7 @@ function findPatterns(posts: ScoredPost[], viral: ViralPost[]): { patterns: Patt
   const kinds = [...new Set(scored.map((p) => p.kind))]
     .map((k) => ({ label: KIND_LABEL[k], posts: scored.filter((p) => p.kind === k) }))
     .filter((g) => g.posts.length >= MIN_SAMPLE)
-    .map((g) => ({ ...g, avg: mean(g.posts.map((p) => p.score!)) }))
+    .map((g) => ({ ...g, avg: median(g.posts.map((p) => p.score!)) }))
     .sort((a, b) => b.avg - a.avg)
   if (kinds.length >= 2) {
     const c = compare(kinds[0], kinds.at(-1)!)
@@ -224,7 +236,7 @@ function findPatterns(posts: ScoredPost[], viral: ViralPost[]): { patterns: Patt
   const byComments = [...new Set(scored.map((p) => p.kind))]
     .map((k) => ({ label: KIND_LABEL[k], posts: scored.filter((p) => p.kind === k) }))
     .filter((g) => g.posts.filter((p) => p.ratios.comments !== undefined).length >= MIN_SAMPLE)
-    .map((g) => ({ ...g, avg: mean(g.posts.map((p) => p.ratios.comments).filter((v): v is number => v !== undefined)) }))
+    .map((g) => ({ ...g, avg: median(g.posts.map((p) => p.ratios.comments).filter((v): v is number => v !== undefined)) }))
     .sort((a, b) => b.avg - a.avg)
   if (byComments.length >= 2 && byComments[0].label !== facts.bestKind) {
     const c = compare(byComments[0], byComments.at(-1)!, 'comments')
@@ -272,14 +284,14 @@ function findPatterns(posts: ScoredPost[], viral: ViralPost[]): { patterns: Patt
     const days = ['일', '월', '화', '수', '목', '금', '토']
     const groups = days
       .map((d, i) => ({ label: `${d}요일`, posts: scored.filter((p) => new Date(p.timestamp).getDay() === i) }))
-      .filter((g) => g.posts.length >= 3)
-      .map((g) => ({ ...g, avg: mean(g.posts.map((p) => p.score!)) }))
-      .sort((a, b) => b.avg - a.avg)
-    const overall = mean(scored.map((p) => p.score!))
-    if (groups.length >= 3 && groups[0].avg / overall >= PATTERN_GAP) {
+      .filter((g) => g.posts.length >= MIN_SAMPLE)
+      .map((g) => ({ ...g, mid: median(g.posts.map((p) => p.score!)) }))
+      .sort((a, b) => b.mid - a.mid)
+    const overall = median(scored.map((p) => p.score!))
+    if (groups.length >= 3 && groups[0].mid / overall >= 1.5) {
       patterns.push({
         text: `${groups[0].label} 게시물 반응이 가장 좋음`,
-        evidence: `${groups[0].label} ${groups[0].posts.length}개 평균 ${fmtX(groups[0].avg)} vs 전체 평균 ${fmtX(overall)}`,
+        evidence: `${groups[0].label} ${groups[0].posts.length}개 중앙값 ${fmtX(groups[0].mid)} vs 전체 중앙값 ${fmtX(overall)}`,
         tone: 'neutral',
       })
     }
@@ -300,14 +312,21 @@ function findPatterns(posts: ScoredPost[], viral: ViralPost[]): { patterns: Patt
       })
       facts.viralKind = kind
     }
-    // 바이럴 게시물에 반복되는 해시태그
+    // 바이럴 게시물에 반복되는 해시태그 — 계정이 거의 모든 글에 다는 태그(브랜드명 등)는 빼고,
+    // 바이럴에서 전체보다 확실히 더 자주 보이는 태그만
     const tagCount = new Map<string, number>()
     viral.forEach((v) => v.post.hashtags.forEach((t) => tagCount.set(t, (tagCount.get(t) ?? 0) + 1)))
-    const repeated = [...tagCount].filter(([, c]) => c >= 2).sort((a, b) => b[1] - a[1]).slice(0, 5)
+    const shareAll = (t: string) => posts.filter((p) => p.hashtags.includes(t)).length / posts.length
+    const repeated = [...tagCount]
+      .filter(([t, c]) => c >= 2 && shareAll(t) < 0.7 && c / viral.length >= shareAll(t) + 0.25)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
     if (repeated.length) {
       patterns.push({
-        text: `바이럴 게시물에 반복되는 해시태그: ${repeated.map(([t]) => t).join(' ')}`,
-        evidence: repeated.map(([t, c]) => `${t} ${c}회`).join(', ') + ` (바이럴 ${viral.length}개 기준)`,
+        text: `바이럴 게시물에 자주 붙은 해시태그: ${repeated.map(([t]) => t).join(' ')}`,
+        evidence: repeated
+          .map(([t, c]) => `${t} 바이럴 ${c}/${viral.length}개 · 전체 ${Math.round(shareAll(t) * 100)}%`)
+          .join(', '),
         tone: 'neutral',
       })
       facts.viralTags = repeated.map(([t]) => t).join(' ')
@@ -318,9 +337,10 @@ function findPatterns(posts: ScoredPost[], viral: ViralPost[]): { patterns: Patt
 }
 
 function excerpt(caption: string, n = 40) {
-  const line = caption.replace(/\s+/g, ' ').trim()
+  const line = cleanCaption(caption)
   if (!line) return '(캡션 없음)'
-  return line.length > n ? `${line.slice(0, n)}…` : line
+  const chars = Array.from(line) // 이모지·꾸밈 글자가 반으로 잘리지 않도록
+  return chars.length > n ? `${chars.slice(0, n).join('')}…` : line
 }
 
 function buildInsight(posts: ScoredPost[], viral: ViralPost[], patterns: Pattern[], facts: Record<string, string>): Insight {
@@ -339,10 +359,14 @@ function buildInsight(posts: ScoredPost[], viral: ViralPost[], patterns: Pattern
   const scored = posts.filter((p) => p.score !== null).sort(byScore)
   if (scored.length >= 10) {
     const bottom = scored.slice(-Math.max(3, Math.floor(scored.length * 0.2)))
-    const counts = new Map<string, number>()
-    bottom.forEach((p) => counts.set(KIND_LABEL[p.kind], (counts.get(KIND_LABEL[p.kind]) ?? 0) + 1))
+    const counts = new Map<MediaKind, number>()
+    bottom.forEach((p) => counts.set(p.kind, (counts.get(p.kind) ?? 0) + 1))
     const [kind, n] = [...counts].sort((a, b) => b[1] - a[1])[0]
-    weak.push(`반응 하위 ${bottom.length}개 중 ${n}개가 ${kind}`)
+    const base = posts.filter((p) => p.kind === kind).length / posts.length
+    // 원래 많이 올리는 형식이면 하위권에도 많은 게 당연하다 — 비중보다 확실히 높을 때만
+    if (n >= 3 && n / bottom.length >= base + 0.15 && KIND_LABEL[kind] !== facts.bestKind) {
+      weak.push(`반응 하위 ${bottom.length}개 중 ${n}개가 ${KIND_LABEL[kind]} (전체 비중 ${Math.round(base * 100)}%)`)
+    }
   }
 
   if (facts.viralKind) repeating.push(`바이럴의 절반 이상이 ${facts.viralKind}`)
@@ -369,6 +393,10 @@ export function analyze(data: AccountData): Analysis {
   for (const m of ['likes', 'comments', 'views'] as Metric[]) {
     const n = summary.samples[m]
     if (n > 0 && n < MIN_SAMPLE) notes.push(`${METRIC_LABEL[m]} 값이 있는 게시물이 ${n}개뿐이라 ${METRIC_LABEL[m]} 기준 비교는 하지 않았습니다.`)
+  }
+  const coveredDays = summary.periodFrom ? (Date.now() - new Date(summary.periodFrom).getTime()) / 86_400_000 : 0
+  if (data.postLimit && posts.length >= data.postLimit && summary.periodFrom && coveredDays < 150) {
+    notes.push(`한 번에 가져오는 게시물 상한(${data.postLimit}개) 때문에 ${summary.periodFrom.slice(0, 10)} 이후 게시물만 분석했습니다.`)
   }
   if (posts.length < MIN_SAMPLE * 2) notes.push(`게시물이 ${posts.length}개라 패턴 분석에는 표본이 부족합니다.`)
   const hiddenLikes = posts.filter((p) => p.likes === null).length

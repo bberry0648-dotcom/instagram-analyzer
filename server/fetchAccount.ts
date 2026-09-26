@@ -52,6 +52,7 @@ export async function handleAnalyze(
         reasons.push(`${id}: 게시물을 한 건도 받지 못했습니다.`)
         continue
       }
+      data.postLimit = opts.maxPosts
       cache.set(username, { at: Date.now(), data })
       return { status: 200, body: data }
     } catch (e) {

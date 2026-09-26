@@ -91,7 +91,7 @@ export function Results({ data, a }: { data: AccountData; a: Analysis }) {
       </Section>
 
       {/* Viral Pattern */}
-      <Section title="Viral Pattern" sub="이 계정 안에서 평균 반응(1.0배)과 비교">
+      <Section title="Viral Pattern" sub="그룹별 반응 중앙값 비교 · 계정 평균 = 1.0배">
         {a.patterns.length ? (
           <Card className="divide-y divide-line/60">
             {a.patterns.map((p) => (
@@ -99,7 +99,7 @@ export function Results({ data, a }: { data: AccountData; a: Analysis }) {
             ))}
           </Card>
         ) : (
-          <Empty>표본 기준(그룹당 5개 이상, 1.3배 이상 차이)을 넘는 뚜렷한 공통점이 없습니다.</Empty>
+          <Empty>표본 기준(그룹당 5개 이상, 중앙값 1.3배 이상 차이)을 넘는 뚜렷한 공통점이 없습니다.</Empty>
         )}
         <p className="mt-2 text-xs text-muted">
           사진·영상 속 인물이나 장면은 분석하지 않습니다. 숫자·형식·캡션·해시태그·게시 요일만 봅니다.

@@ -35,6 +35,8 @@ export interface AccountData {
   /** 공급자가 원천적으로 주지 않는 지표 (화면에서 숨긴다) */
   unavailableMetrics: Array<'likes' | 'comments' | 'views' | 'followers'>
   fetchedAt: string
+  /** 한 번에 가져오는 최대 게시물 수 (상한에 걸렸는지 화면에서 알리기 위해) */
+  postLimit?: number
 }
 
 export interface ApiError {

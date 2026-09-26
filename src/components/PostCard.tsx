@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { KIND_LABEL, type ScoredPost } from '../lib/analyze'
+import { cleanCaption, KIND_LABEL, type ScoredPost } from '../lib/analyze'
 import { imageUrl } from '../lib/api'
 import { date, num } from '../lib/format'
 
@@ -13,11 +13,11 @@ interface Props {
 export function PostCard({ post, badges = [], highlight = [] }: Props) {
   const [imgFailed, setImgFailed] = useState(false)
   const src = imageUrl(post.thumbnailUrl)
-  const caption = post.caption.replace(/\s+/g, ' ').trim()
+  const caption = cleanCaption(post.caption)
 
   return (
     <article className="flex flex-col overflow-hidden rounded-2xl border border-line/70 bg-surface">
-      <a href={post.permalink} target="_blank" rel="noreferrer" className="relative block aspect-square bg-canvas">
+      <a href={post.permalink} target="_blank" rel="noreferrer" className="relative block aspect-square shrink-0 overflow-hidden bg-canvas">
         {src && !imgFailed ? (
           <img
             src={src}
